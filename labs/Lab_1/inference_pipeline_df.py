@@ -1,44 +1,40 @@
 from flask import Flask, request, jsonify
 import joblib
 import pandas as pd
+#from featurizer import add_tree_friendly_features  # <-- IMPORTANT pour joblib.load
+from featurizer import add_svm_features  # <-- IMPORTANT pour joblib.load
 
-# Initialize the Flask app
 app = Flask(__name__)
 
-def add_combined_feature(X):
-    X = X.copy()  # Ensure we're modifying a copy of the DataFrame
-    
-    # Example feature: combining two features
-    X['Combined_radius_texture'] = X['mean radius'] * X['mean texture']
-    
-    return X
-
-BEST_MODEL = 'best_cancer_model_pipeline.joblib'
-# Load the trained model pipeline
-model_pipeline = joblib.load(BEST_MODEL)
+# Charge le **nouveau** modèle RF
+#MODEL_PATH = "best_rf_cancer_pipeline.joblib"
+MODEL_PATH = "best_svc_cancer_pipeline.joblib"
+model_pipeline = joblib.load(MODEL_PATH)
+print("Loaded classifier:", type(model_pipeline.named_steps['classifier']).__name__)
 
 
+# Les 30 features attendues quand tu envoies "features: [...]"
+feature_names = [
+    'mean radius','mean texture','mean perimeter','mean area','mean smoothness',
+    'mean compactness','mean concavity','mean concave points','mean symmetry','mean fractal dimension',
+    'radius error','texture error','perimeter error','area error','smoothness error',
+    'compactness error','concavity error','concave points error','symmetry error','fractal dimension error',
+    'worst radius','worst texture','worst perimeter','worst area','worst smoothness',
+    'worst compactness','worst concavity','worst concave points','worst symmetry','worst fractal dimension'
+]
 
-# Define a route for the home page
 @app.route('/')
 def home():
     return "Welcome to the Breast Cancer Prediction API!"
 
-# Define a route for making predictions
 @app.route('/predict', methods=['POST'])
 def predict():
-    # Get the JSON data from the request
-    data = request.json
-    
-    # Convert JSON data to a DataFrame
-    input_data = pd.DataFrame([data])
-    
-    # Make predictions using the loaded model
-    prediction = model_pipeline.predict(input_data)
-    
-    # Return the prediction as a JSON response
-    return jsonify({'prediction': int(prediction[0])})
+    data = request.get_json(force=True)
+    features = data['features']
+    input_df = pd.DataFrame([features], columns=feature_names)
+    pred = model_pipeline.predict(input_df)
+    return jsonify({'prediction': int(pred[0])})
 
-# Run the app
 if __name__ == '__main__':
-    app.run(debug=True, port=5002)
+    # Pour éviter les surprises de reloader/port, je mets debug=False ici
+    app.run(host='127.0.0.1', port=5001, debug=False)
